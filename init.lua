@@ -90,6 +90,8 @@ P.S. You can delete this when you're done too. It's your config now! :)
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+vim.env.PATH = vim.env.PATH .. ':/opt/homebrew/bin'
+vim.env.TEXMFHOME = vim.fn.expand '~/Library/texmf'
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
@@ -130,6 +132,7 @@ vim.opt.smartcase = true
 
 -- Keep signcolumn on by default
 vim.opt.signcolumn = 'yes'
+-- vim.opt.colorcolumn = '80'
 
 -- Decrease update time
 vim.opt.updatetime = 250
@@ -164,6 +167,12 @@ vim.opt.scrolloff = 10
 --  See `:help hlsearch`
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
+-- Exit insert mode with jk
+vim.keymap.set('i', 'jk', '<ESC>', { noremap = true })
+
+-- Easier slash with french keyboard
+vim.keymap.set('n', 'é', '/', { desc = 'Search function slash' })
+
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
@@ -189,6 +198,12 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the right win
 vim.keymap.set('n', '<C-j>', '<C-w><C-j>', { desc = 'Move focus to the lower window' })
 vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper window' })
 
+-- Cheatsheet neovim et telescope
+vim.keymap.set("n", "<leader>ch", function()
+  require("custom.cheatsheet.cheatsheet").open()
+end, {
+  desc = "[C]heat sheet / [H]elp",
+})
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
@@ -361,6 +376,7 @@ require('lazy').setup({
       { 'nvim-tree/nvim-web-devicons', enabled = vim.g.have_nerd_font },
     },
     config = function()
+      require 'custom.telescope'
       -- Telescope is a fuzzy finder that comes with a lot of different things that
       -- it can fuzzy find! It's more than just a "file finder", it can search
       -- many different aspects of Neovim, your workspace, LSP, and more!
@@ -395,6 +411,20 @@ require('lazy').setup({
         extensions = {
           ['ui-select'] = {
             require('telescope.themes').get_dropdown(),
+          },
+          media_files = {
+            filetypes = { 'png', 'jpg', 'jpeg', 'pdf' },
+            find_cmd = 'fd',
+            -- Force use of iTerm2 imgcat if available
+            preview_cmd = function(filepath)
+              if vim.fn.executable 'imgcat' == 1 then
+                return { 'imgcat', filepath }
+              elseif vim.fn.executable 'chafa' == 1 then
+                return { 'chafa', filepath }
+              else
+                return { 'echo', 'No previewer available' }
+              end
+            end,
           },
         },
       }
@@ -440,7 +470,14 @@ require('lazy').setup({
       end, { desc = '[S]earch [N]eovim files' })
     end,
   },
-
+  -- Make Telescope display images and pdfs as previews
+  {
+    'nvim-telescope/telescope-media-files.nvim',
+    dependencies = { 'nvim-telescope/telescope.nvim' },
+    config = function()
+      require('telescope').load_extension 'media_files'
+    end,
+  },
   -- LSP Plugins
   {
     -- `lazydev` configures Lua LSP for your Neovim config, runtime and plugins
@@ -501,6 +538,16 @@ require('lazy').setup({
       --    That is to say, every time a new file is opened that is associated with
       --    an lsp (for example, opening `main.rs` is associated with `rust_analyzer`) this
       --    function will be executed to configure the current buffer
+      -- Set tab width for tex files (2025-10-18)
+      vim.api.nvim_create_autocmd('FileType', {
+        pattern = 'tex',
+        callback = function()
+          vim.opt_local.expandtab = true -- use spaces instead of tabs
+          vim.opt_local.tabstop = 2 -- visual width of a tab
+          vim.opt_local.shiftwidth = 2 -- indent size
+          vim.opt_local.softtabstop = 2 -- press <Tab> inserts 2 spaces
+        end,
+      })
       vim.api.nvim_create_autocmd('LspAttach', {
         group = vim.api.nvim_create_augroup('kickstart-lsp-attach', { clear = true }),
         callback = function(event)
@@ -760,8 +807,9 @@ require('lazy').setup({
             luasnip.lsp_expand(args.body)
           end,
         },
-        completion = { completeopt = 'menu,menuone,noinsert' },
-
+        -- completion = { completeopt = 'menu,menuone,noinsert' },
+        completion = { autocomplete = false }, -- no popup; manual trigger
+        experimental = { ghost_text = { hl_group = 'CmpGhostText' } },
         -- For an understanding of why these mappings were
         -- chosen, you will need to read `:help ins-completion`
         --
@@ -833,14 +881,17 @@ require('lazy').setup({
     -- change the command in the config to whatever the name of that colorscheme is.
     --
     -- If you want to see what colorschemes are already installed, you can use `:Telescope colorscheme`.
-    'folke/tokyonight.nvim',
+    --    'folke/tokyonight.nvim',
+    'catppuccin/nvim',
+    name = 'catppuccin',
     priority = 1000, -- Make sure to load this before all the other start plugins.
     init = function()
       -- Load the colorscheme here.
       -- Like many other themes, this one has different styles, and you could load
       -- any other, such as 'tokyonight-storm', 'tokyonight-moon', or 'tokyonight-day'.
-      vim.cmd.colorscheme 'tokyonight-night'
+      -- vim.cmd.colorscheme 'tokyonight-night'
 
+      vim.cmd.colorscheme 'catppuccin-macchiato'
       -- You can configure highlights by doing something like:
       vim.cmd.hi 'Comment gui=none'
     end,
@@ -852,6 +903,11 @@ require('lazy').setup({
   { -- Collection of various small independent plugins/modules
     'echasnovski/mini.nvim',
     config = function()
+      -- La Fabrique
+      -- Ghost view du header des questions dans un examen
+      require('custom.fabrique.ghost').setup()
+
+
       -- Better Around/Inside textobjects
       --
       -- Examples:
@@ -954,6 +1010,13 @@ require('lazy').setup({
     },
   },
 })
-
+vim.g.vimtex_ignore_paths = {
+  '*/q_*.tex',
+  '*/p_*.tex',
+}
+pcall(require, 'custom.tex_ghostcmp')
+pcall(require, 'custom.lsp_texlab')
+-- or use a specific color:
+-- vim.api.nvim_set_hl(0, 'CmpGhostText', { fg = '#5c6370', italic = true })
 -- The line beneath this is called `modeline`. See `:help modeline`
 -- vim: ts=2 sts=2 sw=2 et
